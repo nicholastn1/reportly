@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #252525;
+  --text-primary: #e4e4e4;
+  --text-secondary: #9a9a9a;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --border: #2a2a2a;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Titlebar drag region for macOS overlay */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Ensure dark background extends under native titlebar overlay */
+html, body, #root {
+  background: var(--bg-primary);
+}
+
+/* CodeMirror overrides for dark theme */
+.cm-editor {
+  height: 100%;
+  font-size: 14px;
+}
+
+.cm-editor .cm-scroller {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+/* Reusable input field */
+.input-field {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  outline: none;
+}
+.input-field:focus {
+  border-color: var(--accent);
+}
