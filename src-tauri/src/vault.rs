@@ -69,7 +69,7 @@ pub fn list_reports(
             .trim_start_matches("Daily Report - ")
             .trim_end_matches(".md");
 
-        if let Ok(date) = parse_date(date_str) {
+        if parse_date(date_str).is_ok() {
             let content = fs::read_to_string(entry.path()).unwrap_or_default();
             let preview: String = content.lines().take(5).collect::<Vec<_>>().join("\n");
             entries.push(ReportEntry {
