@@ -57,7 +57,8 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
-          args: --target aarch64-apple-darwin
+          updaterJsonPreferNsis: false
 
       - name: Inject Sequoia icon variants
+        continue-on-error: true
         run: bash src-tauri/scripts/inject-icon-variants.sh

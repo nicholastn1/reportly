@@ -8,7 +8,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TAURI_DIR="$(dirname "$SCRIPT_DIR")"
 ICON_SOURCE="$TAURI_DIR/icons/AppIcon.icon"
+
+# Find the .app bundle — supports both direct and cross-target builds
 APP_BUNDLE="$TAURI_DIR/target/release/bundle/macos/Reportly.app"
+if [ ! -d "$APP_BUNDLE" ]; then
+  APP_BUNDLE="$(find "$TAURI_DIR/target" -path "*/release/bundle/macos/Reportly.app" -type d 2>/dev/null | head -1)"
+fi
 
 if [ ! -d "$APP_BUNDLE" ]; then
   echo "Error: App bundle not found at $APP_BUNDLE"
