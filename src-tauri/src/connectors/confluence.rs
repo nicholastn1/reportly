@@ -33,7 +33,7 @@ impl Connector for ConfluenceConnector {
     }
 
     fn is_enabled(&self) -> bool {
-        self.config.enabled && self.config.instance_url.as_ref().map_or(false, |u| !u.is_empty())
+        self.config.enabled && self.config.instance_url.as_ref().is_some_and(|u| !u.is_empty())
     }
 
     async fn collect(&self, date: &NaiveDate) -> Result<CollectedData, String> {

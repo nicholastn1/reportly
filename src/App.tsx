@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
 import CommandPalette from "./components/CommandPalette";
 import Toast from "./components/Toast";
+import UpdateToast from "./components/UpdateToast";
 import Dashboard from "./pages/Dashboard";
 import ReportEditor from "./pages/ReportEditor";
 import ReportHistory from "./pages/ReportHistory";
@@ -14,6 +15,8 @@ import ApprovalDialog from "./components/ApprovalDialog";
 import { useToast } from "./hooks/useToast";
 import { sendToDiscord, getTodayReport } from "./lib/tauri";
 import { todayFormatted } from "./lib/dates";
+import { checkForUpdate, downloadAndInstall, type UpdateState } from "./lib/updater";
+import type { Update } from "@tauri-apps/plugin-updater";
 
 export default function App() {
   const navigate = useNavigate();
@@ -26,6 +29,8 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("reportly-sidebar-collapsed") === "true",
   );
+  const [updateState, setUpdateState] = useState<UpdateState>({ status: "idle" });
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
 
   const today = todayFormatted();
 
@@ -70,6 +75,39 @@ export default function App() {
       unlisten2.then((fn) => fn());
     };
   }, [today]);
+
+  // Check for updates 3s after mount
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        setUpdateState({ status: "checking" });
+        const result = await checkForUpdate();
+        if (result) {
+          setPendingUpdate(result.update);
+          setUpdateState({ status: "available", info: result.info, update: result.update });
+        } else {
+          setUpdateState({ status: "idle" });
+        }
+      } catch {
+        // Silently ignore update check errors (offline, etc.)
+        setUpdateState({ status: "idle" });
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleInstallUpdate = useCallback(async () => {
+    if (!pendingUpdate) return;
+    try {
+      setUpdateState({ status: "downloading", progress: 0 });
+      await downloadAndInstall(pendingUpdate, (progress) => {
+        setUpdateState({ status: "downloading", progress });
+      });
+      setUpdateState({ status: "ready" });
+    } catch (e) {
+      setUpdateState({ status: "error", message: String(e) });
+    }
+  }, [pendingUpdate]);
 
   const handleScheduledSend = async () => {
     setSending(true);
@@ -138,6 +176,11 @@ export default function App() {
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <Toast message={toast} />
+      <UpdateToast
+        state={updateState}
+        onInstall={handleInstallUpdate}
+        onDismiss={() => setUpdateState({ status: "idle" })}
+      />
     </div>
   );
 }

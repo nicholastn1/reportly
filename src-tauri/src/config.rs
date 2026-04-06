@@ -66,7 +66,7 @@ impl Default for DiscordReadConfig {
 }
 
 /// CLI-based connector (gh, glab) — zero config, uses existing auth
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CliConnectorConfig {
     pub enabled: bool,
     pub username: Option<String>,
@@ -74,18 +74,8 @@ pub struct CliConnectorConfig {
     pub hostname: Option<String>,
 }
 
-impl Default for CliConnectorConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            username: None,
-            hostname: None,
-        }
-    }
-}
-
 /// Atlassian connector (Jira, Confluence) — REST API with Basic Auth
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct McpConnectorConfig {
     pub enabled: bool,
     /// Legacy MCP URL field (kept for backwards compat, ignored if instance_url is set)
@@ -100,17 +90,6 @@ pub struct McpConnectorConfig {
     pub email: Option<String>,
 }
 
-impl Default for McpConnectorConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            mcp_url: String::new(),
-            username: None,
-            instance_url: None,
-            email: None,
-        }
-    }
-}
 
 impl Default for AppConfig {
     fn default() -> Self {

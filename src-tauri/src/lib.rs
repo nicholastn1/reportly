@@ -10,7 +10,7 @@ mod scheduler;
 mod vault;
 
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
     Emitter, Manager,
 };
@@ -18,6 +18,7 @@ use tauri::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -27,19 +28,79 @@ pub fn run() {
                 )?;
             }
 
+            // macOS app menu with About metadata
+            let version = app.config().version.clone();
+            let about = PredefinedMenuItem::about(
+                app,
+                Some("Sobre o Reportly"),
+                Some(AboutMetadata {
+                    version,
+                    authors: Some(vec!["Nicholas Nogueira".into()]),
+                    copyright: Some("© 2026 Nicholas Nogueira".into()),
+                    ..Default::default()
+                }),
+            )?;
+            let hide = PredefinedMenuItem::hide(app, None)?;
+            let hide_others = PredefinedMenuItem::hide_others(app, None)?;
+            let show_all = PredefinedMenuItem::show_all(app, None)?;
+            let quit = PredefinedMenuItem::quit(app, None)?;
+            let separator = PredefinedMenuItem::separator(app)?;
+            let separator2 = PredefinedMenuItem::separator(app)?;
+
+            let app_menu = Submenu::with_items(
+                app,
+                "Reportly",
+                true,
+                &[&about, &separator, &hide, &hide_others, &show_all, &separator2, &quit],
+            )?;
+
+            // File menu
+            let close_window = PredefinedMenuItem::close_window(app, None)?;
+            let file_menu = Submenu::with_items(app, "File", true, &[&close_window])?;
+
+            // Edit menu
+            let undo = PredefinedMenuItem::undo(app, None)?;
+            let redo = PredefinedMenuItem::redo(app, None)?;
+            let sep_e1 = PredefinedMenuItem::separator(app)?;
+            let cut = PredefinedMenuItem::cut(app, None)?;
+            let copy = PredefinedMenuItem::copy(app, None)?;
+            let paste = PredefinedMenuItem::paste(app, None)?;
+            let select_all = PredefinedMenuItem::select_all(app, None)?;
+            let edit_menu = Submenu::with_items(
+                app,
+                "Edit",
+                true,
+                &[&undo, &redo, &sep_e1, &cut, &copy, &paste, &select_all],
+            )?;
+
+            // View menu
+            let fullscreen = PredefinedMenuItem::fullscreen(app, None)?;
+            let view_menu = Submenu::with_items(app, "View", true, &[&fullscreen])?;
+
+            // Window menu
+            let minimize = PredefinedMenuItem::minimize(app, None)?;
+            let zoom = PredefinedMenuItem::maximize(app, None)?;
+            let window_menu = Submenu::with_items(app, "Window", true, &[&minimize, &zoom])?;
+
+            let menu_bar = Menu::with_items(
+                app,
+                &[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu],
+            )?;
+            app.set_menu(menu_bar)?;
+
             // Check if launched with --scheduled-send
             let is_scheduled = std::env::args().any(|a| a == "--scheduled-send");
 
             // System tray
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let show = MenuItem::with_id(app, "show", "Open", true, None::<&str>)?;
-            let send_now =
+            let tray_quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let tray_show = MenuItem::with_id(app, "show", "Open", true, None::<&str>)?;
+            let tray_send =
                 MenuItem::with_id(app, "send_now", "Send Report...", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &send_now, &quit])?;
+            let tray_menu = Menu::with_items(app, &[&tray_show, &tray_send, &tray_quit])?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
-                .menu(&menu)
+                .menu(&tray_menu)
                 .tooltip("Reportly")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
