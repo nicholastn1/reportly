@@ -77,3 +77,9 @@ pub fn list_reports(year: i32, month: u32) -> Result<Vec<vault::ReportEntry>, St
     let cfg = config::load_config();
     vault::list_reports(&cfg.vault_path, year, month)
 }
+
+#[tauri::command]
+pub fn list_recent_reports(limit: usize) -> Result<Vec<vault::ReportEntry>, String> {
+    let cfg = config::load_config();
+    vault::list_recent_reports(&cfg.vault_path, limit)
+}

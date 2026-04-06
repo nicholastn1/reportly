@@ -90,3 +90,32 @@ pub struct ReportEntry {
     pub preview: String,
     pub path: String,
 }
+
+/// List the N most recent reports across all months, scanning back up to 3 months.
+pub fn list_recent_reports(vault_path: &str, limit: usize) -> Result<Vec<ReportEntry>, String> {
+    let today = chrono::Local::now().date_naive();
+    let mut all_entries = Vec::new();
+
+    // Scan current month and up to 2 previous months
+    let mut year = today.year();
+    let mut month = today.month();
+    for _ in 0..3 {
+        match list_reports(vault_path, year, month) {
+            Ok(entries) => all_entries.extend(entries),
+            Err(_) => {}
+        }
+        if month == 1 {
+            month = 12;
+            year -= 1;
+        } else {
+            month -= 1;
+        }
+    }
+
+    // Sort by date descending and deduplicate
+    all_entries.sort_by(|a, b| b.date.cmp(&a.date));
+    all_entries.dedup_by(|a, b| a.date == b.date);
+    all_entries.truncate(limit);
+
+    Ok(all_entries)
+}

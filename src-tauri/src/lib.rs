@@ -129,6 +129,7 @@ pub fn run() {
             commands::reports::get_report,
             commands::reports::save_report,
             commands::reports::list_reports,
+            commands::reports::list_recent_reports,
             commands::discord::send_to_discord,
             commands::discord::get_discord_config,
             commands::discord::save_discord_token,
