@@ -1,23 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listReports } from "../lib/tauri";
+import { MONTH_NAMES } from "../lib/dates";
 import type { ReportEntry } from "../lib/types";
-
-const MONTH_NAMES = [
-  "",
-  "Janeiro",
-  "Fevereiro",
-  "Marco",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
 
 export default function ReportHistory() {
   const navigate = useNavigate();

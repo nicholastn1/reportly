@@ -1,5 +1,24 @@
+export const MONTH_NAMES = [
+  "",
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
 export function todayFormatted(): string {
-  const d = new Date();
+  return formatDateStr(new Date());
+}
+
+export function formatDateStr(d: Date): string {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yy = String(d.getFullYear()).slice(-2);
@@ -7,23 +26,16 @@ export function todayFormatted(): string {
 }
 
 export function formatDateLabel(dateStr: string): string {
-  // "06.04.26" → "06 de Abril de 2026"
   const [dd, mm] = dateStr.split(".");
-  const months = [
-    "",
-    "Janeiro",
-    "Fevereiro",
-    "Março",
-    "Abril",
-    "Maio",
-    "Junho",
-    "Julho",
-    "Agosto",
-    "Setembro",
-    "Outubro",
-    "Novembro",
-    "Dezembro",
-  ];
-  const month = months[parseInt(mm, 10)] || mm;
+  const month = MONTH_NAMES[parseInt(mm, 10)] || mm;
   return `${dd} de ${month}`;
+}
+
+export function nextBusinessDay(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) {
+    d.setDate(d.getDate() + 1);
+  }
+  return formatDateStr(d);
 }
