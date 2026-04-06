@@ -201,7 +201,7 @@ impl Connector for DiscordReaderConnector {
             let empty_msgs = vec![];
             let messages = convo["messages"].as_array().unwrap_or(&empty_msgs);
 
-            output.push_str(&format!("conversation:\n"));
+            output.push_str("conversation:\n");
             output.push_str(&format!(" channel: {} (ID: {})\n", name, channel_id));
             output.push_str(&format!(" message_count: {}\n\n", messages.len()));
             output.push_str(&format!(

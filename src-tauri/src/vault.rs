@@ -100,9 +100,8 @@ pub fn list_recent_reports(vault_path: &str, limit: usize) -> Result<Vec<ReportE
     let mut year = today.year();
     let mut month = today.month();
     for _ in 0..3 {
-        match list_reports(vault_path, year, month) {
-            Ok(entries) => all_entries.extend(entries),
-            Err(_) => {}
+        if let Ok(entries) = list_reports(vault_path, year, month) {
+            all_entries.extend(entries);
         }
         if month == 1 {
             month = 12;
