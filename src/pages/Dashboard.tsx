@@ -69,7 +69,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-full">
       {/* Hero */}
       <div className="dashboard-hero">
         <h1 className="dashboard-greeting">{getGreeting()} 👋</h1>
