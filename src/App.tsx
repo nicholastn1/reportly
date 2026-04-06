@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import Sidebar from "./components/Sidebar";
+import Toast from "./components/Toast";
 import Dashboard from "./pages/Dashboard";
 import ReportEditor from "./pages/ReportEditor";
 import ReportHistory from "./pages/ReportHistory";
 import Digest from "./pages/Digest";
 import Settings from "./pages/Settings";
 import ApprovalDialog from "./components/ApprovalDialog";
+import { useToast } from "./hooks/useToast";
 import { sendToDiscord, getTodayReport } from "./lib/tauri";
 import { todayFormatted } from "./lib/dates";
 
@@ -15,7 +18,7 @@ export default function App() {
   const navigate = useNavigate();
   const [showScheduledDialog, setShowScheduledDialog] = useState(false);
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
 
   const today = todayFormatted();
 
@@ -49,33 +52,30 @@ export default function App() {
     try {
       const result = await sendToDiscord(today);
       if (result.success) {
-        setToast("Report enviado com sucesso!");
+        showToast("Report enviado com sucesso!");
         setShowScheduledDialog(false);
       } else {
-        setToast(`Erro: ${result.error}`);
+        showToast(`Erro: ${result.error}`);
       }
     } catch (e) {
-      setToast(`Erro: ${e}`);
+      showToast(`Erro: ${e}`);
     } finally {
       setSending(false);
     }
   };
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* macOS titlebar */}
       <header
         data-tauri-drag-region
-        className="titlebar-drag h-12 shrink-0 bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-center relative"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          getCurrentWindow().startDragging();
+        }}
+        className="h-12 shrink-0 bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-center relative select-none"
       >
-        <span className="text-sm font-semibold text-[var(--text-secondary)] select-none pointer-events-none">
+        <span className="text-sm font-semibold text-[var(--text-secondary)] pointer-events-none absolute top-[16px] left-1/2 -translate-x-1/2 leading-none">
           Reportly
         </span>
       </header>
@@ -110,18 +110,7 @@ export default function App() {
         sending={sending}
       />
 
-      {/* Global toast */}
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg text-sm shadow-lg ${
-            toast.startsWith("Erro")
-              ? "bg-red-900/90 text-red-200"
-              : "bg-green-900/90 text-green-200"
-          }`}
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
     </div>
   );
 }
