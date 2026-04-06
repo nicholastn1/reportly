@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import PlatformIcon, { PLATFORM_COLORS } from "../components/PlatformIcon";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
+import { checkForUpdate, downloadAndInstall, type UpdateState } from "../lib/updater";
 import {
   getConfig,
   saveConfig,
@@ -16,11 +18,13 @@ import {
   detectClaudeMcpServers,
 } from "../lib/tauri";
 import type { AppConfig, DiscordConfig, ConnectorsStatus, DetectedMcpServer } from "../lib/types";
+import type { Update } from "@tauri-apps/plugin-updater";
 
 const TABS = [
   { id: "geral", label: "Geral" },
   { id: "conectores", label: "Conectores" },
   { id: "agendamento", label: "Agendamento" },
+  { id: "sobre", label: "Sobre" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -48,6 +52,9 @@ export default function Settings() {
   const [connectorTokens, setConnectorTokens] = useState<Record<string, string>>({});
   const { toast, showToast } = useToast(3000);
   const [agentInstalled, setAgentInstalled] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
+  const [updateState, setUpdateState] = useState<UpdateState>({ status: "idle" });
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
 
   useEffect(() => {
     getConfig().then(setConfig);
@@ -55,6 +62,7 @@ export default function Settings() {
     getLaunchAgentStatus().then(setAgentInstalled);
     getConnectorsStatus().then(setConnStatus);
     detectClaudeMcpServers().then(setDetectedMcp);
+    getVersion().then(setAppVersion);
   }, []);
 
   const handleSave = async () => {
@@ -92,6 +100,37 @@ export default function Settings() {
       showToast("Configurações salvas!");
     } catch (e) {
       showToast(`Erro: ${e}`);
+    }
+  };
+
+  const handleCheckUpdate = async () => {
+    try {
+      setUpdateState({ status: "checking" });
+      const result = await checkForUpdate();
+      if (result) {
+        setPendingUpdate(result.update);
+        setUpdateState({ status: "available", info: result.info, update: result.update });
+      } else {
+        setUpdateState({ status: "idle" });
+        showToast("Nenhuma atualização disponível.");
+      }
+    } catch (e) {
+      setUpdateState({ status: "error", message: String(e) });
+      showToast(`Erro ao verificar: ${e}`);
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!pendingUpdate) return;
+    try {
+      setUpdateState({ status: "downloading", progress: 0 });
+      await downloadAndInstall(pendingUpdate, (progress) => {
+        setUpdateState({ status: "downloading", progress });
+      });
+      setUpdateState({ status: "ready" });
+    } catch (e) {
+      setUpdateState({ status: "error", message: String(e) });
+      showToast(`Erro ao instalar: ${e}`);
     }
   };
 
@@ -512,6 +551,57 @@ export default function Settings() {
               </label>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tab: Sobre */}
+      {tab === "sobre" && (
+        <div className="max-w-lg space-y-6">
+          <Section title="Versão">
+            <p className="text-lg font-mono text-[var(--text-primary)]">
+              Reportly v{appVersion}
+            </p>
+          </Section>
+
+          <Section title="Atualizações">
+            {updateState.status === "available" ? (
+              <div className="space-y-2">
+                <p className="text-sm text-[var(--text-primary)]">
+                  Nova versão disponível: <span className="font-medium">v{updateState.info.version}</span>
+                </p>
+                {updateState.info.body && (
+                  <p className="text-xs text-[var(--text-secondary)]">{updateState.info.body}</p>
+                )}
+                <button
+                  onClick={handleInstallUpdate}
+                  className="px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-hover)] transition-colors"
+                >
+                  Instalar Atualização
+                </button>
+              </div>
+            ) : updateState.status === "downloading" ? (
+              <div className="space-y-2">
+                <p className="text-sm text-[var(--text-primary)]">Baixando atualização...</p>
+                <div className="w-full h-2 bg-[var(--bg-primary)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--accent)] transition-all duration-300 rounded-full"
+                    style={{ width: `${updateState.progress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-[var(--text-secondary)]">{updateState.progress}%</p>
+              </div>
+            ) : updateState.status === "ready" ? (
+              <p className="text-sm text-green-400">Atualização instalada! Reiniciando...</p>
+            ) : (
+              <button
+                onClick={handleCheckUpdate}
+                disabled={updateState.status === "checking"}
+                className="px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)] text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors disabled:opacity-50"
+              >
+                {updateState.status === "checking" ? "Verificando..." : "Verificar Atualizações"}
+              </button>
+            )}
+          </Section>
         </div>
       )}
 
