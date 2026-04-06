@@ -62,3 +62,42 @@ jobs:
       - name: Inject Sequoia icon variants
         continue-on-error: true
         run: bash src-tauri/scripts/inject-icon-variants.sh
+
+      - name: Generate and upload updater manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SIG_FILE=$(find src-tauri/target -name "*.app.tar.gz.sig" 2>/dev/null | head -1)
+          TAR_FILE=$(find src-tauri/target -name "*.app.tar.gz" ! -name "*.sig" 2>/dev/null | head -1)
+
+          if [ -z "$SIG_FILE" ] || [ -z "$TAR_FILE" ]; then
+            echo "Signature or tar.gz not found, skipping updater manifest"
+            exit 0
+          fi
+
+          SIGNATURE=$(cat "$SIG_FILE")
+          TAR_NAME=$(basename "$TAR_FILE")
+          DOWNLOAD_URL="https://github.com/nicholastn1/reportly/releases/download/${GITHUB_REF_NAME}/${TAR_NAME}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat > latest.json << MANIFEST
+          {
+            "version": "${VERSION}",
+            "notes": "Reportly ${GITHUB_REF_NAME}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${SIGNATURE}",
+                "url": "${DOWNLOAD_URL}"
+              },
+              "darwin-x86_64": {
+                "signature": "${SIGNATURE}",
+                "url": "${DOWNLOAD_URL}"
+              }
+            }
+          }
+          MANIFEST
+
+          # Upload the .sig and latest.json to the release
+          gh release upload "${GITHUB_REF_NAME}" "$SIG_FILE" latest.json --repo nicholastn1/reportly --clobber
