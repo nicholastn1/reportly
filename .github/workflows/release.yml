@@ -85,7 +85,7 @@ jobs:
           fi
 
           echo "Signing $TAR_FILE..."
-          pnpm tauri signer sign "$TAR_FILE" --private-key "$TAURI_SIGNING_PRIVATE_KEY"
+          pnpm tauri signer sign "$TAR_FILE" --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password ""
           SIGNATURE=$(cat "${TAR_FILE}.sig")
 
           TAR_ASSET_NAME="Reportly_aarch64.app.tar.gz"
