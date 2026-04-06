@@ -57,7 +57,6 @@ struct GlabEvent {
     action_name: Option<String>,
     target_title: Option<String>,
     target_type: Option<String>,
-    push_data: Option<serde_json::Value>,
     created_at: Option<String>,
 }
 

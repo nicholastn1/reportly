@@ -2,26 +2,25 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { getReport, saveReport, sendToDiscord } from "../lib/tauri";
 import { todayFormatted, formatDateLabel } from "../lib/dates";
-import type { Report } from "../lib/types";
 import MarkdownEditor from "../components/MarkdownEditor";
 import MarkdownPreview from "../components/MarkdownPreview";
 import ApprovalDialog from "../components/ApprovalDialog";
+import Toast from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 
 export default function ReportEditor() {
   const { date: paramDate } = useParams<{ date: string }>();
   const date = paramDate || todayFormatted();
 
-  const [report, setReport] = useState<Report | null>(null);
   const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast(3000);
 
   useEffect(() => {
     getReport(date).then((r) => {
-      setReport(r);
       setContent(r.content);
       setDirty(false);
     });
@@ -37,13 +36,13 @@ export default function ReportEditor() {
     try {
       await saveReport(date, content);
       setDirty(false);
-      setToast("Salvo!");
+      showToast("Salvo!");
     } catch (e) {
-      setToast(`Erro ao salvar: ${e}`);
+      showToast(`Erro ao salvar: ${e}`);
     } finally {
       setSaving(false);
     }
-  }, [date, content]);
+  }, [date, content, showToast]);
 
   const handleSend = async () => {
     if (dirty) await handleSave();
@@ -51,24 +50,17 @@ export default function ReportEditor() {
     try {
       const result = await sendToDiscord(date);
       if (result.success) {
-        setToast("Report enviado com sucesso!");
+        showToast("Report enviado com sucesso!");
         setShowDialog(false);
       } else {
-        setToast(`Erro: ${result.error}`);
+        showToast(`Erro: ${result.error}`);
       }
     } catch (e) {
-      setToast(`Erro: ${e}`);
+      showToast(`Erro: ${e}`);
     } finally {
       setSending(false);
     }
   };
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col">
@@ -114,18 +106,7 @@ export default function ReportEditor() {
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm shadow-lg ${
-            toast.startsWith("Erro")
-              ? "bg-red-900/90 text-red-200"
-              : "bg-green-900/90 text-green-200"
-          }`}
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
 
       <ApprovalDialog
         open={showDialog}

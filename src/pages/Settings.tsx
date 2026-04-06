@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import Toast from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 import {
   getConfig,
   saveConfig,
@@ -34,7 +36,7 @@ export default function Settings() {
   const [token, setToken] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [connectorTokens, setConnectorTokens] = useState<Record<string, string>>({});
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast(3000);
   const [agentInstalled, setAgentInstalled] = useState(false);
 
   useEffect(() => {
@@ -77,18 +79,13 @@ export default function Settings() {
       }
 
       setConnStatus(await getConnectorsStatus());
-      setToast("Configuracoes salvas!");
+      showToast("Configuracoes salvas!");
     } catch (e) {
-      setToast(`Erro: ${e}`);
+      showToast(`Erro: ${e}`);
     }
   };
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
+
 
   if (!config) {
     return <p className="text-[var(--text-secondary)]">Carregando...</p>;
@@ -250,7 +247,7 @@ export default function Settings() {
                                 confluence: { ...config!.connectors.confluence, enabled: true, mcp_url: server.url! },
                               },
                             });
-                            setToast("Jira e Confluence configurados via Atlassian MCP!");
+                            showToast("Jira e Confluence configurados via Atlassian MCP!");
                           }
                         }}
                         className="text-xs px-3 py-1 rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] transition-colors"
@@ -471,17 +468,7 @@ export default function Settings() {
         Salvar
       </button>
 
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg text-sm shadow-lg ${
-            toast.startsWith("Erro")
-              ? "bg-red-900/90 text-red-200"
-              : "bg-green-900/90 text-green-200"
-          }`}
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
     </div>
   );
 }
@@ -556,17 +543,15 @@ function McpConnectorSection({
   tokenValue,
   onTokenChange,
   onUpdate,
-  showUsername,
 }: {
   icon: string;
   name: string;
   label: string;
-  config: { enabled: boolean; mcp_url: string; username: string | null };
+  config: { enabled: boolean; mcp_url: string };
   hasToken: boolean;
   tokenValue: string;
   onTokenChange: (v: string) => void;
   onUpdate: (field: string, value: unknown) => void;
-  showUsername?: boolean;
 }) {
   return (
     <ConnectorToggle
@@ -583,16 +568,6 @@ function McpConnectorSection({
           className="input-field"
         />
       </Field>
-      {showUsername && (
-        <Field label="Username">
-          <input
-            type="text"
-            value={config.username ?? ""}
-            onChange={(e) => onUpdate("username", e.target.value || null)}
-            className="input-field"
-          />
-        </Field>
-      )}
       <Field
         label={
           <>

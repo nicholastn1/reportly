@@ -1,17 +1,11 @@
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, ORIGIN, REFERER, USER_AGENT};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::keychain;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct DiscordMessage {
     pub content: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DiscordResponse {
-    pub id: Option<String>,
-    pub message: Option<String>,
 }
 
 pub async fn send_message(channel_id: &str, content: &str) -> Result<String, String> {
