@@ -3,7 +3,6 @@ pub mod github;
 pub mod gitlab;
 pub mod jira;
 pub mod confluence;
-pub mod mcp;
 
 use async_trait::async_trait;
 use chrono::NaiveDate;

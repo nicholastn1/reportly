@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::NaiveDate;
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 
-use super::mcp::McpClient;
 use super::{CollectedData, Connector};
 use crate::config::McpConnectorConfig;
 use crate::keychain;
@@ -15,9 +15,14 @@ impl JiraConnector {
         Self { config }
     }
 
-    fn client(&self) -> Result<McpClient, String> {
-        let token = keychain::get_connector_token("jira").ok();
-        Ok(McpClient::new(&self.config.mcp_url, token))
+    fn auth_header(&self) -> Result<String, String> {
+        let email = self.config.email.as_deref().unwrap_or_default();
+        let token = keychain::get_connector_token("jira")
+            .or_else(|_| keychain::get_connector_token("confluence"))
+            .map_err(|_| "Atlassian API token não configurado no Keychain".to_string())?;
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", email, token));
+        Ok(format!("Basic {}", encoded))
     }
 }
 
@@ -28,18 +33,15 @@ impl Connector for JiraConnector {
     }
 
     fn is_enabled(&self) -> bool {
-        self.config.enabled && !self.config.mcp_url.is_empty()
+        self.config.enabled && self.config.instance_url.as_ref().map_or(false, |u| !u.is_empty())
     }
 
     async fn collect(&self, date: &NaiveDate) -> Result<CollectedData, String> {
-        let client = self.client()?;
+        let instance_url = self.config.instance_url.as_deref()
+            .ok_or("Jira instance_url não configurada")?;
+        let auth = self.auth_header()?;
         let date_str = date.format("%Y-%m-%d").to_string();
 
-        // Comprehensive JQL: everything the user touched on this date
-        // - Assigned to me AND updated on this date
-        // - Status changed on this date (transitions)
-        // - I commented on this date
-        // - Created by me on this date
         let jql = format!(
             "(assignee = currentUser() AND updated >= \"{}\" AND updated < \"{} 23:59\") \
              OR (status CHANGED DURING (\"{}\", \"{} 23:59\") BY currentUser()) \
@@ -50,17 +52,40 @@ impl Connector for JiraConnector {
             date_str, date_str,
         );
 
-        let result = client
-            .call_tool(
-                "jira_search",
-                serde_json::json!({
-                    "jql": jql,
-                    "limit": 50
-                }),
-            )
-            .await?;
+        let url = format!("{}/rest/api/3/search/jql", instance_url.trim_end_matches('/'));
 
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap_or_default();
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.insert(AUTHORIZATION, HeaderValue::from_str(&auth).map_err(|e| e.to_string())?);
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let body = serde_json::json!({
+            "jql": jql,
+            "maxResults": 50,
+            "fields": ["key", "summary", "issuetype", "status", "priority", "assignee", "updated"]
+        });
+
+        let response = client
+            .post(&url)
+            .headers(headers)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("Jira request failed: {}", e))?;
+
+        let status = response.status();
+        let text = response.text().await.map_err(|e| e.to_string())?;
+
+        if !status.is_success() {
+            return Err(format!("Jira API error ({}): {}", status, &text[..text.len().min(200)]));
+        }
+
+        let parsed: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| format!("Jira parse error: {}", e))?;
 
         Ok(CollectedData {
             source: "jira".to_string(),

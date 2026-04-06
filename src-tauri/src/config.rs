@@ -84,12 +84,20 @@ impl Default for CliConnectorConfig {
     }
 }
 
-/// MCP-based connector (Jira, Confluence) — needs MCP URL
+/// Atlassian connector (Jira, Confluence) — REST API with Basic Auth
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpConnectorConfig {
     pub enabled: bool,
+    /// Legacy MCP URL field (kept for backwards compat, ignored if instance_url is set)
+    #[serde(default)]
     pub mcp_url: String,
     pub username: Option<String>,
+    /// Atlassian instance URL, e.g. "https://mycompany.atlassian.net"
+    #[serde(default)]
+    pub instance_url: Option<String>,
+    /// Atlassian account email for Basic Auth
+    #[serde(default)]
+    pub email: Option<String>,
 }
 
 impl Default for McpConnectorConfig {
@@ -98,6 +106,8 @@ impl Default for McpConnectorConfig {
             enabled: false,
             mcp_url: String::new(),
             username: None,
+            instance_url: None,
+            email: None,
         }
     }
 }

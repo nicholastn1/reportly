@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::NaiveDate;
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 
-use super::mcp::McpClient;
 use super::{CollectedData, Connector};
 use crate::config::McpConnectorConfig;
 use crate::keychain;
@@ -15,9 +15,14 @@ impl ConfluenceConnector {
         Self { config }
     }
 
-    fn client(&self) -> Result<McpClient, String> {
-        let token = keychain::get_connector_token("confluence").ok();
-        Ok(McpClient::new(&self.config.mcp_url, token))
+    fn auth_header(&self) -> Result<String, String> {
+        let email = self.config.email.as_deref().unwrap_or_default();
+        let token = keychain::get_connector_token("confluence")
+            .or_else(|_| keychain::get_connector_token("jira"))
+            .map_err(|_| "Atlassian API token não configurado no Keychain".to_string())?;
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", email, token));
+        Ok(format!("Basic {}", encoded))
     }
 }
 
@@ -28,33 +33,53 @@ impl Connector for ConfluenceConnector {
     }
 
     fn is_enabled(&self) -> bool {
-        self.config.enabled && !self.config.mcp_url.is_empty()
+        self.config.enabled && self.config.instance_url.as_ref().map_or(false, |u| !u.is_empty())
     }
 
     async fn collect(&self, date: &NaiveDate) -> Result<CollectedData, String> {
-        let client = self.client()?;
+        let instance_url = self.config.instance_url.as_deref()
+            .ok_or("Confluence instance_url não configurada")?;
+        let auth = self.auth_header()?;
         let date_str = date.format("%Y-%m-%d").to_string();
+        let next_day = (*date + chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
 
-        // CQL: pages created or modified by current user on this date
         let cql = format!(
             "(creator = currentUser() AND created >= \"{}\") \
              OR (contributor = currentUser() AND lastModified >= \"{}\" AND lastModified < \"{}\") \
              ORDER BY lastModified DESC",
-            date_str, date_str,
-            (*date + chrono::Duration::days(1)).format("%Y-%m-%d"),
+            date_str, date_str, next_day,
         );
 
-        let result = client
-            .call_tool(
-                "confluence_search",
-                serde_json::json!({
-                    "cql": cql,
-                    "limit": 50
-                }),
-            )
-            .await?;
+        let url = format!(
+            "{}/wiki/rest/api/content/search",
+            instance_url.trim_end_matches('/')
+        );
 
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap_or_default();
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, HeaderValue::from_str(&auth).map_err(|e| e.to_string())?);
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let response = client
+            .get(&url)
+            .headers(headers)
+            .query(&[("cql", &cql), ("limit", &"50".to_string()), ("expand", &"space,version".to_string())])
+            .send()
+            .await
+            .map_err(|e| format!("Confluence request failed: {}", e))?;
+
+        let status = response.status();
+        let text = response.text().await.map_err(|e| e.to_string())?;
+
+        if !status.is_success() {
+            return Err(format!("Confluence API error ({}): {}", status, &text[..text.len().min(200)]));
+        }
+
+        let parsed: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| format!("Confluence parse error: {}", e))?;
 
         Ok(CollectedData {
             source: "confluence".to_string(),
