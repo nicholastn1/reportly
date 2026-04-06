@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+*.log
+
+# dotcontext generated files (per-session, not versioned)
+.context/prp/
+.context/discoveries/
+.context/bugs/
