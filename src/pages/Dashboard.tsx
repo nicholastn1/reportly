@@ -6,6 +6,8 @@ import type { Report } from "../lib/types";
 import StatusBadge from "../components/StatusBadge";
 import ApprovalDialog from "../components/ApprovalDialog";
 import MarkdownPreview from "../components/MarkdownPreview";
+import Toast from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -13,7 +15,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
 
   const today = todayFormatted();
 
@@ -35,24 +37,17 @@ export default function Dashboard() {
     try {
       const result = await sendToDiscord(today);
       if (result.success) {
-        setToast("Report enviado com sucesso!");
+        showToast("Report enviado com sucesso!");
         setShowDialog(false);
       } else {
-        setToast(`Erro: ${result.error}`);
+        showToast(`Erro: ${result.error}`);
       }
     } catch (e) {
-      setToast(`Erro: ${e}`);
+      showToast(`Erro: ${e}`);
     } finally {
       setSending(false);
     }
   };
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   if (loading) {
     return (
@@ -102,18 +97,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm shadow-lg ${
-            toast.startsWith("Erro")
-              ? "bg-red-900/90 text-red-200"
-              : "bg-green-900/90 text-green-200"
-          }`}
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
 
       <ApprovalDialog
         open={showDialog}

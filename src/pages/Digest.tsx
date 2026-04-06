@@ -6,9 +6,11 @@ import {
   applyDigestToReport,
   getConnectorsStatus,
 } from "../lib/tauri";
-import { todayFormatted } from "../lib/dates";
+import { todayFormatted, nextBusinessDay } from "../lib/dates";
 import type { DigestResult, ConnectorsStatus } from "../lib/types";
 import MarkdownPreview from "../components/MarkdownPreview";
+import Toast from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 
 const PLATFORM_ICONS: Record<string, string> = {
   discord: "💬",
@@ -32,19 +34,6 @@ interface DigestProgress {
   total: number;
 }
 
-// Calculate next business day
-function nextBusinessDay(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  while (d.getDay() === 0 || d.getDay() === 6) {
-    d.setDate(d.getDate() + 1);
-  }
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-  return `${dd}.${mm}.${yy}`;
-}
-
 export default function Digest() {
   const navigate = useNavigate();
   const defaultDate = todayFormatted();
@@ -55,7 +44,7 @@ export default function Digest() {
   const [result, setResult] = useState<DigestResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const [editedSuggestions, setEditedSuggestions] = useState("");
   const [progress, setProgress] = useState<DigestProgress | null>(null);
 
@@ -87,7 +76,7 @@ export default function Digest() {
       const digest = await generateDigest(collectDate);
       setResult(digest);
     } catch (e) {
-      setToast(`Erro: ${e}`);
+      showToast(`Erro: ${e}`);
     } finally {
       setLoading(false);
       setProgress(null);
@@ -108,20 +97,14 @@ export default function Digest() {
         yesterday,
         editedSuggestions || undefined,
       );
-      setToast(`Digest aplicado ao report de ${targetDate}!`);
+      showToast(`Digest aplicado ao report de ${targetDate}!`);
     } catch (e) {
-      setToast(`Erro: ${e}`);
+      showToast(`Erro: ${e}`);
     } finally {
       setApplying(false);
     }
   };
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   const enabledCount = status
     ? Object.entries(status).filter(
@@ -289,18 +272,7 @@ export default function Digest() {
         </div>
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg text-sm shadow-lg ${
-            toast.startsWith("Erro")
-              ? "bg-red-900/90 text-red-200"
-              : "bg-green-900/90 text-green-200"
-          }`}
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
     </div>
   );
 }
