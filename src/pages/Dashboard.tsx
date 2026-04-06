@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getTodayReport, sendToDiscord } from "../lib/tauri";
+import { getTodayReport, sendToDiscord, listRecentReports } from "../lib/tauri";
 import { todayFormatted, formatDateLabel } from "../lib/dates";
-import type { Report } from "../lib/types";
+import type { Report, ReportEntry } from "../lib/types";
 import StatusBadge from "../components/StatusBadge";
 import ApprovalDialog from "../components/ApprovalDialog";
-import MarkdownPreview from "../components/MarkdownPreview";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Bom dia";
+  if (hour < 18) return "Boa tarde";
+  return "Boa noite";
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [report, setReport] = useState<Report | null>(null);
+  const [recentReports, setRecentReports] = useState<ReportEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [sending, setSending] = useState(false);
@@ -20,8 +27,14 @@ export default function Dashboard() {
   const today = todayFormatted();
 
   useEffect(() => {
-    getTodayReport()
-      .then(setReport)
+    Promise.all([
+      getTodayReport(),
+      listRecentReports(7).catch(() => [] as ReportEntry[]),
+    ])
+      .then(([todayReport, recent]) => {
+        setReport(todayReport);
+        setRecentReports(recent);
+      })
       .catch((e) => console.error(e))
       .finally(() => setLoading(false));
   }, []);
@@ -56,45 +69,78 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
-      <p className="text-sm text-[var(--text-secondary)] mb-6">
-        {formatDateLabel(today)}
-      </p>
-
-      {/* Today's report card */}
-      <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] p-5 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold">Daily Report - {today}</h2>
+    <div className="max-w-4xl">
+      {/* Hero */}
+      <div className="dashboard-hero">
+        <h1 className="dashboard-greeting">{getGreeting()} 👋</h1>
+        <p className="dashboard-date">{formatDateLabel(today)}</p>
+        <div className="dashboard-today-status">
+          <span>Report de hoje:</span>
           <StatusBadge status={status} />
         </div>
+      </div>
 
-        {report?.exists ? (
-          <div className="bg-[var(--bg-primary)] rounded-lg border border-[var(--border)] max-h-80 overflow-auto">
-            <MarkdownPreview content={report.content} />
+      {/* Quick Actions */}
+      <div className="dashboard-actions">
+        <div
+          className="dashboard-action-card"
+          onClick={() => navigate(`/editor/${today}`)}
+        >
+          <div className="dashboard-action-icon">✎</div>
+          <div className="dashboard-action-title">Editar Report</div>
+          <div className="dashboard-action-desc">
+            Escrever ou editar o report de hoje
+          </div>
+        </div>
+        <div
+          className="dashboard-action-card"
+          onClick={() => navigate("/digest")}
+        >
+          <div className="dashboard-action-icon">↯</div>
+          <div className="dashboard-action-title">Gerar Digest</div>
+          <div className="dashboard-action-desc">
+            Resumo automático das atividades
+          </div>
+        </div>
+        <div
+          className="dashboard-action-card"
+          onClick={() => {
+            if (report?.exists) {
+              setShowDialog(true);
+            } else {
+              showToast("Crie um report primeiro");
+            }
+          }}
+        >
+          <div className="dashboard-action-icon">💬</div>
+          <div className="dashboard-action-title">Enviar ao Discord</div>
+          <div className="dashboard-action-desc">
+            Publicar o report no canal
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Timeline */}
+      <div className="dashboard-timeline">
+        <div className="dashboard-timeline-header">Reports Recentes</div>
+        {recentReports.length === 0 ? (
+          <div className="dashboard-timeline-empty">
+            Nenhum report encontrado no vault
           </div>
         ) : (
-          <p className="text-sm text-[var(--text-secondary)] py-8 text-center">
-            Nenhum report para hoje ainda.
-          </p>
-        )}
-
-        <div className="flex gap-3 mt-4">
-          <button
-            onClick={() => navigate(`/editor/${today}`)}
-            className="px-4 py-2 text-sm rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] hover:bg-[var(--border)] transition-colors"
-          >
-            Editar
-          </button>
-          {report?.exists && (
-            <button
-              onClick={() => setShowDialog(true)}
-              className="px-4 py-2 text-sm rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] transition-colors"
+          recentReports.map((entry) => (
+            <div
+              key={entry.date}
+              className="dashboard-timeline-item"
+              onClick={() => navigate(`/editor/${entry.date}`)}
             >
-              Enviar pro Discord
-            </button>
-          )}
-        </div>
+              <div className="dashboard-timeline-date">{entry.date}</div>
+              <div className="dashboard-timeline-preview">
+                {entry.preview.split("\n")[0] || "Sem conteúdo"}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <Toast message={toast} />

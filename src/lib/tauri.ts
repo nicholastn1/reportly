@@ -21,6 +21,9 @@ export const saveReport = (date: string, content: string) =>
 export const listReports = (year: number, month: number) =>
   invoke<ReportEntry[]>("list_reports", { year, month });
 
+export const listRecentReports = (limit: number) =>
+  invoke<ReportEntry[]>("list_recent_reports", { limit });
+
 export const sendToDiscord = (date: string) =>
   invoke<SendResult>("send_to_discord", { date });
 

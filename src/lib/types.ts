@@ -49,6 +49,8 @@ export interface McpConnectorConfig {
   enabled: boolean;
   mcp_url: string;
   username: string | null;
+  instance_url: string | null;
+  email: string | null;
 }
 
 export interface ConnectorsConfig {

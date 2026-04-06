@@ -39,11 +39,13 @@ export default function ReportHistory() {
   };
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold mb-6">Historico</h1>
+    <div className="max-w-4xl">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Histórico</h1>
+      </div>
 
       {/* Month navigation */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-4">
         <button
           onClick={prevMonth}
           className="px-3 py-1 rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
@@ -68,19 +70,19 @@ export default function ReportHistory() {
           Nenhum report em {MONTH_NAMES[month]} {year}.
         </p>
       ) : (
-        <div className="space-y-3">
-          {reports.map((r) => (
+        <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] overflow-hidden">
+          {reports.map((r, i) => (
             <button
               key={r.date}
               onClick={() => navigate(`/editor/${r.date}`)}
-              className="w-full text-left bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] p-4 hover:border-[var(--accent)] transition-colors"
+              className={`w-full text-left flex items-center gap-4 px-5 py-3 hover:bg-[var(--bg-tertiary)] transition-colors ${
+                i > 0 ? "border-t border-[var(--border)]" : ""
+              }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium">Daily Report - {r.date}</span>
-              </div>
-              <p className="text-sm text-[var(--text-secondary)] line-clamp-2 whitespace-pre-line">
-                {r.preview}
-              </p>
+              <span className="text-sm font-semibold min-w-[70px]">{r.date}</span>
+              <span className="text-sm text-[var(--text-secondary)] truncate">
+                {r.preview.split("\n")[0] || "Sem conteúdo"}
+              </span>
             </button>
           ))}
         </div>

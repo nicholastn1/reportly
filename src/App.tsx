@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import Sidebar from "./components/Sidebar";
+import Toolbar from "./components/Toolbar";
+import CommandPalette from "./components/CommandPalette";
 import Toast from "./components/Toast";
 import Dashboard from "./pages/Dashboard";
 import ReportEditor from "./pages/ReportEditor";
@@ -16,11 +17,34 @@ import { todayFormatted } from "./lib/dates";
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [digestMounted, setDigestMounted] = useState(false);
   const [showScheduledDialog, setShowScheduledDialog] = useState(false);
   const [sending, setSending] = useState(false);
   const { toast, showToast } = useToast();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem("reportly-sidebar-collapsed") === "true",
+  );
 
   const today = todayFormatted();
+
+  // Keep Digest mounted once visited so it doesn't lose state
+  useEffect(() => {
+    if (location.pathname === "/digest") setDigestMounted(true);
+  }, [location.pathname]);
+
+  // Cmd+K to open Command Palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Listen for scheduled send events from Rust backend
   useEffect(() => {
@@ -65,30 +89,32 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      {/* macOS titlebar */}
-      <header
-        data-tauri-drag-region
-        onMouseDown={(e) => {
-          e.preventDefault();
-          getCurrentWindow().startDragging();
-        }}
-        className="h-12 shrink-0 bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-center relative select-none"
-      >
-        <span className="text-sm font-semibold text-[var(--text-secondary)] pointer-events-none absolute top-[16px] left-1/2 -translate-x-1/2 leading-none">
-          Reportly
-        </span>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <main className="flex-1 overflow-auto bg-[var(--bg-primary)]">
+    <div className="app-layout">
+      <Sidebar collapsed={sidebarCollapsed} />
+      <div className="app-main">
+        <Toolbar
+          sidebarCollapsed={sidebarCollapsed}
+          onOpenPalette={() => setPaletteOpen(true)}
+          onToggleSidebar={() => {
+            setSidebarCollapsed((v) => {
+              localStorage.setItem("reportly-sidebar-collapsed", String(!v));
+              return !v;
+            });
+          }}
+        />
+        <main className="app-content">
           <div className="p-6">
+            {/* Digest stays mounted once visited to preserve state */}
+            {digestMounted && (
+              <div style={{ display: location.pathname === "/digest" ? "block" : "none" }}>
+                <Digest />
+              </div>
+            )}
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/editor" element={<ReportEditor />} />
               <Route path="/editor/:date" element={<ReportEditor />} />
-              <Route path="/digest" element={<Digest />} />
+              <Route path="/digest" element={null} />
               <Route path="/history" element={<ReportHistory />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" />} />
@@ -110,6 +136,7 @@ export default function App() {
         sending={sending}
       />
 
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <Toast message={toast} />
     </div>
   );
