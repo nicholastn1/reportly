@@ -13,15 +13,24 @@ fn plist_path() -> PathBuf {
         .join(format!("{}.plist", LABEL))
 }
 
-fn app_binary_path() -> String {
-    // In debug, use the binary directly; in release, use the .app bundle
-    let exe = std::env::current_exe().unwrap_or_default();
-    exe.to_string_lossy().to_string()
+/// Returns the path to the .app bundle if the current exe lives inside one,
+/// otherwise None (dev/debug builds running the bare binary).
+fn app_bundle_path() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    // Expect: <bundle>.app/Contents/MacOS/<binary>
+    let macos_dir = exe.parent()?;
+    let contents_dir = macos_dir.parent()?;
+    let bundle = contents_dir.parent()?;
+    if bundle.extension().and_then(|s| s.to_str()) == Some("app")
+        && macos_dir.file_name().and_then(|s| s.to_str()) == Some("MacOS")
+    {
+        Some(bundle.to_path_buf())
+    } else {
+        None
+    }
 }
 
 fn generate_plist(schedule: &ScheduleConfig) -> String {
-    let binary = app_binary_path();
-
     // Parse time "HH:MM"
     let parts: Vec<&str> = schedule.time.split(':').collect();
     let hour: u8 = parts.first().and_then(|h| h.parse().ok()).unwrap_or(9);
@@ -47,6 +56,29 @@ fn generate_plist(schedule: &ScheduleConfig) -> String {
         .collect::<Vec<_>>()
         .join("\n");
 
+    // Launch via `open -a <Bundle>.app --args --scheduled-send` so macOS sets up
+    // the bundle context properly. Running the binary directly via launchd makes
+    // WKWebView fail to load assets (white screen). Fall back to direct exec in
+    // dev builds where there's no .app bundle.
+    let program_args = match app_bundle_path() {
+        Some(bundle) => format!(
+            "        <string>/usr/bin/open</string>
+        <string>-a</string>
+        <string>{bundle}</string>
+        <string>--args</string>
+        <string>--scheduled-send</string>",
+            bundle = bundle.to_string_lossy(),
+        ),
+        None => {
+            let exe = std::env::current_exe().unwrap_or_default();
+            format!(
+                "        <string>{binary}</string>
+        <string>--scheduled-send</string>",
+                binary = exe.to_string_lossy(),
+            )
+        }
+    };
+
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -56,8 +88,7 @@ fn generate_plist(schedule: &ScheduleConfig) -> String {
     <string>{label}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{binary}</string>
-        <string>--scheduled-send</string>
+{program_args}
     </array>
     <key>StartCalendarInterval</key>
     <array>
@@ -68,7 +99,7 @@ fn generate_plist(schedule: &ScheduleConfig) -> String {
 </dict>
 </plist>"#,
         label = LABEL,
-        binary = binary,
+        program_args = program_args,
         intervals = intervals,
     )
 }
