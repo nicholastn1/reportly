@@ -18,6 +18,10 @@ pub fn get_today_report() -> Result<Report, String> {
     let today = Local::now().date_naive();
     let date_str = today.format("%d.%m.%y").to_string();
 
+    // Lazily create today's file with "ontem" carried over from the previous
+    // business day. No-op if the file already exists.
+    vault::carry_forward_if_missing(&cfg.vault_path, &today)?;
+
     match vault::read_report(&cfg.vault_path, &today)? {
         Some(content) => {
             let path = vault::report_path(&cfg.vault_path, &today);

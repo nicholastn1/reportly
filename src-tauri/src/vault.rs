@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, Duration, NaiveDate, Weekday};
 use std::fs;
 use std::path::PathBuf;
 
@@ -6,6 +6,8 @@ const MONTHS: &[&str] = &[
     "", "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
 ];
+
+const SECTION_TODAY: &str = "**O que será feito hoje:**";
 
 pub fn report_path(vault_path: &str, date: &NaiveDate) -> PathBuf {
     let year = date.format("%Y").to_string();
@@ -40,6 +42,56 @@ pub fn write_report(vault_path: &str, date: &NaiveDate, content: &str) -> Result
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     fs::write(path, content).map_err(|e| e.to_string())
+}
+
+/// Most recent weekday strictly before `date` (skips Sat/Sun).
+pub fn previous_business_day(date: &NaiveDate) -> NaiveDate {
+    let mut d = *date - Duration::days(1);
+    while matches!(d.weekday(), Weekday::Sat | Weekday::Sun) {
+        d -= Duration::days(1);
+    }
+    d
+}
+
+/// Body under `**O que será feito hoje:**` until next `**...**` header or EOF.
+pub fn extract_today_section(content: &str) -> String {
+    let Some(idx) = content.find(SECTION_TODAY) else {
+        return String::new();
+    };
+    let after = &content[idx + SECTION_TODAY.len()..];
+    let body = match after.find("\n**") {
+        Some(end) => &after[..end],
+        None => after,
+    };
+    body.trim().to_string()
+}
+
+/// Create today's report from the previous business day's "será feito hoje"
+/// section. No-op if today's file already exists.
+pub fn carry_forward_if_missing(vault_path: &str, today: &NaiveDate) -> Result<(), String> {
+    if report_path(vault_path, today).exists() {
+        return Ok(());
+    }
+
+    let yesterday = previous_business_day(today);
+    let yesterday_section = match read_report(vault_path, &yesterday)? {
+        Some(content) => extract_today_section(&content),
+        None => String::new(),
+    };
+
+    let ontem_block = if yesterday_section.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", yesterday_section)
+    };
+
+    let body = format!(
+        "## Daily Report - {date}\n\n**O que foi feito ontem:**\n{ontem}\n**O que será feito hoje:**\n",
+        date = today.format("%d.%m.%y"),
+        ontem = ontem_block,
+    );
+
+    write_report(vault_path, today, &body)
 }
 
 pub fn list_reports(
